@@ -1,0 +1,14 @@
+# Окружение и кэш
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Базы данных (локальные)
+chroma_db/
+*.db
+seen_urls.txt
+
+# Конфиги со скрытыми токенами
+config.py
+.env
