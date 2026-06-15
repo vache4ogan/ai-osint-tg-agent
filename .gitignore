@@ -3,7 +3,7 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-
+.vscode/
 # Базы данных (локальные)
 chroma_db/
 *.db

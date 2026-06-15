@@ -4,18 +4,19 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import feedparser
-from src.config import token
 
+from src.config import BOT_TOKEN, ADMIN_ID, CHANNEL_ID
 # Импортируем наш собранный граф и функцию парсера
-from src.writer_agent import app 
-from src.chanking import update_knowledge_base
+from agents.graph import app
 
+from src.chanking import update_knowledge_base
+from typing import Any
 # ==========================================
 # НАСТРОЙКИ БОТА
 # ==========================================
-BOT_TOKEN = token
-ADMIN_ID = 7396702351  # Твой личный ID
-CHANNEL_ID = "@ai_ml_ds_news" # Канал для публикации
+BOT_TOKEN = BOT_TOKEN
+ADMIN_ID = ADMIN_ID
+CHANNEL_ID = CHANNEL_ID
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -56,7 +57,10 @@ async def cmd_topics(message: Message):
     builder = InlineKeyboardBuilder()
     recent_topics_cache.clear() 
     
-    for i, entry in enumerate(feed.entries[:5]):
+    for i, raw_entry in enumerate(feed.entries[:5]):
+        # Явно говорим анализатору: "Считай это любым объектом, у него точно есть .title"
+        entry: Any = raw_entry 
+        
         topic_id = f"topic_{i}"
         recent_topics_cache[topic_id] = entry.title
         builder.button(text=entry.title, callback_data=topic_id)
