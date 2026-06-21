@@ -5,7 +5,8 @@ from langchain_ollama import ChatOllama
 # 1. Инициализируем модель эмбеддингов
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    model_kwargs={'device': 'cuda'}
+    model_kwargs={'device': 'cuda'},
+    encode_kwargs={'batch_size': 4}
 )
 
 # 2. Просто подключаемся к существующей папке (без добавления новых текстов)

@@ -2,10 +2,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-
+import torch
 from src.parser import scrape_habr_ml_news
 
 def update_knowledge_base():
+    torch.cuda.empty_cache()
     print("🔄 Проверка новых статей на Хабре...")
     
     # 1. Запускаем парсер

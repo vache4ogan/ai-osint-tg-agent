@@ -1,6 +1,6 @@
 from langchain_community.tools import DuckDuckGoSearchRun
 
-from src.llm_core import vector_store
+from src.llm_core import vector_store, llm
 from agents.state import AgentState
 
 web_search = DuckDuckGoSearchRun()
@@ -46,3 +46,28 @@ def check_context(state: AgentState):
     else:
         print("   [Routing]: ⚠️ Локальный контекст достаточек. Передаю писателю")
         return "write"
+
+
+def route_by_intent(state: AgentState):
+    """Решает, куда направить запрос: на обычный RAG или на SQL-аналитику"""
+    
+    user_query = state["topic"]
+    
+    # Быстрый промпт к LLM для классификации интента
+    prompt = f"""Проанализируй запрос пользователя и определи его цель.
+    Если пользователь просит статистику, аналитику, тренды, подсчет чего-либо в базе или топ технологий/компаний — верни строго одно слово: ANALYTICS.
+    Если пользователь просит написать пост на конкретную тему или пересказать статью — верни строго одно слово: RAG.
+    
+    Запрос: {user_query}
+    Вердикт:"""
+    
+    # Вызываем напрямую через строковый парсер
+    from langchain_core.output_parsers import StrOutputParser
+    verdict = (llm | StrOutputParser()).invoke(prompt).strip().upper()
+    
+    if "ANALYTICS" in verdict:
+        print("   [Router]: 📈 Обнаружен аналитический запрос. Направляю к SQL-Аналитику.")
+        return "go_to_sql"
+    else:
+        print("   [Router]: 📝 Обнаружен контентный запрос. Направляю к стандартному RAG.")
+        return "go_to_rag"
