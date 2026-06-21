@@ -4,31 +4,37 @@ from bs4 import BeautifulSoup
 import time
 import os # Добавили для проверки файла
 
-# Указываем имя файла, где будем хранить память о ссылках
-CACHE_FILE = "seen_urls.txt"
+from src.database import SessionLocal, Article, Entity
+from src.ner_extractor import extract_entities_from_text
 
-def get_seen_urls():
-    """Читает архив ссылок с диска и возвращает их в виде множества (set)"""
-    if not os.path.exists(CACHE_FILE):
+
+
+def get_seen_urls_from_db():
+    """Достает все сохраненные URL напрямую из SQLite"""
+    session = SessionLocal()
+    try:
+        # Делаем быстрый запрос: SELECT url FROM articles
+        # .all() вернет список кортежей вида [('http...',), ('http...',)]
+        urls = session.query(Article.url).all()
+        
+        # Распаковываем кортежи и собираем в быстрый set
+        return set(url[0] for url in urls)
+    except Exception as e:
+        print(f"❌ Ошибка при чтении URL из базы: {e}")
         return set()
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        # Читаем файл, убираем переносы строк и кладем в set (для быстрого поиска)
-        return set(f.read().splitlines())
+    finally:
+        session.close()
 
-def save_url_to_cache(url):
-    """Дописывает новую ссылку в конец архива"""
-    with open(CACHE_FILE, "a", encoding="utf-8") as f:
-        f.write(url + "\n")
 
 def scrape_habr_ml_news(limit=3):
     rss_url = "https://habr.com/ru/rss/hub/machine_learning/all/"
     feed = feedparser.parse(rss_url)
     
     # 1. Загружаем память нашего Скаута
-    seen_urls = get_seen_urls()
-    print(f"🧠 В памяти агента уже сохранено {len(seen_urls)} статей.")
+    seen_urls = get_seen_urls_from_db()
+    print(f"🧠 В SQL-базе уже сохранено {len(seen_urls)} статей.")
     print(f"📡 В RSS найдено свежих статей: {len(feed.entries)}")
-    
+
     scraped_data = []
     
     for entry in feed.entries[:limit]:
@@ -61,8 +67,8 @@ def scrape_habr_ml_news(limit=3):
                     })
                     print(f"✅ Успешно скачано: {len(clean_text)} символов.")
                     
-                    # 3. ЗАПОМИНАЕМ ССЫЛКУ ПОСЛЕ УСПЕШНОГО СКАЧИВАНИЯ
-                    save_url_to_cache(link)
+                    save_article_to_sql(title=title, url=link, text=clean_text)
+                
                     # Обновляем сет в памяти, чтобы не было дублей внутри одного запуска
                     seen_urls.add(link) 
                 else:
@@ -76,6 +82,44 @@ def scrape_habr_ml_news(limit=3):
             print(f"❌ Ошибка при парсинге: {e}")
             
     return scraped_data
+
+
+def save_article_to_sql(title, url, text):
+    session = SessionLocal()
+    
+    try:
+        # 1. Сохраняем саму статью
+        new_article = Article(title=title, url=url)
+        session.add(new_article)
+        
+        # 2. Вытаскиваем сущности через LLM
+        print("🧠 Извлекаю NER сущности...")
+        extracted_entities = extract_entities_from_text(text)
+        
+        # 3. Сохраняем сущности и связываем их со статьей
+        for ent in extracted_entities:
+            # Ищем, есть ли уже такая сущность в базе (чтобы не плодить дубли "Python")
+            db_entity = session.query(Entity).filter_by(name=ent.name).first()
+            
+            if not db_entity:
+                db_entity = Entity(name=ent.name, label=ent.label)
+                session.add(db_entity)
+            
+            # Связываем статью и сущность
+            new_article.entities.append(db_entity)
+            
+        session.commit()
+        print(f"✅ Статья '{title}' и {len(extracted_entities)} сущностей сохранены в SQL!")
+        
+    except Exception as e:
+        session.rollback()
+        print(f"❌ Ошибка SQL: {e}")
+    finally:
+        session.close()
+
+
+
+
 
 
 if __name__ == "__main__":
