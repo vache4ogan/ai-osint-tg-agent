@@ -10,6 +10,7 @@ from src.config import BOT_TOKEN, ADMIN_ID, CHANNEL_ID
 from agents.graph import app
 
 from src.chanking import update_knowledge_base
+from src.evaluator import evaluate_single_response
 from typing import Any
 # ==========================================
 # НАСТРОЙКИ БОТА
@@ -99,10 +100,26 @@ async def generate_and_review(topic_id: str, topic_title: str, message: Message)
         initial_state = {"topic": topic_title}
         final_state = await asyncio.to_thread(app.invoke, initial_state)
         draft = final_state["draft"]
+        context = final_state.get("context", "")
         
         # Сохраняем черновик в кэш
         final_text = draft + "\n\n Всем бр бр патапим !"
         drafts_cache[topic_id] = final_text
+        
+        # Обновляем статус: началась оценка
+        await message.edit_text(
+            f"✅ Черновик написан!\n⏳ Теперь Ragas оценивает качество (Faithfulness, Relevancy) на локальной модели...\n*Тема:* {topic_title}",
+            parse_mode="Markdown"
+        )
+        
+        # Оцениваем через Ragas
+        metrics = await asyncio.to_thread(evaluate_single_response, topic_title, draft, context)
+        
+        metrics_text = (
+            f"📊 **Метрики качества (Ragas)**:\n"
+            f"• Faithfulness: `{metrics['faithfulness']}`\n"
+            f"• Answer Relevancy: `{metrics['answer_relevancy']}`\n\n"
+        )
         
         # Создаем клавиатуру модерации (Human-in-the-loop)
         builder = InlineKeyboardBuilder()
@@ -113,7 +130,7 @@ async def generate_and_review(topic_id: str, topic_title: str, message: Message)
         
         # Отправляем черновик на проверку
         await message.edit_text(
-            f"📝 **ЧЕРНОВИК ГОТОВ**\n*Тема:* {topic_title}\n\n{final_text}",
+            f"📝 **ЧЕРНОВИК ГОТОВ**\n*Тема:* {topic_title}\n\n{metrics_text}{final_text}",
             reply_markup=builder.as_markup(),
             parse_mode="Markdown"
         )
