@@ -44,12 +44,13 @@ workflow.add_conditional_edges(
 workflow.add_edge("web_searcher", "writer")
 workflow.add_edge("writer", "critic")
 
-# Проверка критика (остается без изменений)
+# Проверка критика (добавлен ретрай при падении парсера)
 workflow.add_conditional_edges(
     "critic",
     should_continue,
     {
         "continue": "writer", 
+        "retry": "critic",
         "end": END            
     }
 )

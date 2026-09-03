@@ -7,8 +7,9 @@ def critique_post(state: AgentState):
     """Проверяет текст на галлюцинации"""
     
     print("🧐 [Critic]: Ищу галлюцинации в черновике...")
+    parse_error = state.get("parse_error", "")
     
-    prompt = ChatPromptTemplate.from_messages([
+    messages = [
         ("system", """Ты — безжалостный редактор-фактчекер. Твоя единственная цель — найти ложь.
         
         Сравни <draft> (текст автора) с <facts> (исходные данные).
@@ -23,28 +24,44 @@ def critique_post(state: AgentState):
         
         ПРАВИЛА:
         1. Если в <draft> есть имена (например, Марсель Дутш), даты, концепции или проекты, которых НЕТ в <facts> — это галлюцинация.
-        2. Если ты нашел галлюцинацию, напиши ЧТО ИМЕННО выдумано и строго прикажи это убрать.
-        3. Если черновик ИДЕАЛЬНО совпадает с фактами, выведи ровно одно слово: APPROVE. Никаких других слов, символов или пересказов текста!"""),
-        ("human", "Твой вердикт?")
-    ])
+        2. Строго следуй JSON схеме при ответе.
+        """)
+    ]
+    
+    if parse_error:
+        messages.append(("human", f"В предыдущий раз ты вернул невалидный JSON. Ошибка Pydantic:\n{parse_error}\nИсправь формат и верни строго JSON, соответствующий схеме CriticVerdict."))
+    else:
+        messages.append(("human", "Твой вердикт?"))
+        
+    prompt = ChatPromptTemplate.from_messages(messages)
     struct_llm = llm.with_structured_output(CriticVerdict)
     
     chain = prompt | struct_llm
 
-    verdict = chain.invoke({"context": state["context"], "draft": state["draft"]})
-    
-    return {"critique": verdict}
+    try:
+        verdict = chain.invoke({"context": state["context"], "draft": state["draft"]})
+        return {"critique": verdict, "parse_error": ""}
+    except Exception as e:
+        print(f"⚠️ [Critic]: Ошибка парсинга JSON: {e}")
+        return {"parse_error": str(e)}
 
 
 def should_continue(state: AgentState):
-    """Роутер: решает, отправить на перепись или закончить"""
-    verdict = state["critique"]
-    iterations = state["iterations"]
+    """Роутер: решает, отправить на перепись, на ретрай критика или закончить"""
+    parse_error = state.get("parse_error", "")
     
-    print(f"   [Routing]: Ответ критика: {verdict.feedback[:100]}...") # Печатаем кусок ответа
+    if parse_error:
+        print("   [Routing]: 🔄 Сбой структуры JSON. Возвращаю Критику на исправление (Retry).")
+        return "retry"
+        
+    verdict = state["critique"]
+    iterations = state.get("iterations", 0)
+    
+    feedback_preview = verdict.feedback[:100] if verdict.feedback else "Ошибок нет."
+    print(f"   [Routing]: Ответ критика: {feedback_preview}...") 
     
     # ЖЕСТКОЕ УСЛОВИЕ: Только точное совпадение или защита от бесконечного цикла
-    if verdict.is_approved or iterations >= 3:
+    if verdict.is_factual or iterations >= 3:
         print("   [Routing]: ✅ Пост ИДЕАЛЕН. Завершаю работу.")
         return "end"
     else:
