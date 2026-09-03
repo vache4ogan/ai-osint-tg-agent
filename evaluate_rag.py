@@ -68,14 +68,17 @@ def main():
     # 5. Красивый вывод результатов
     print("\n✅ Оценка завершена! Итоговые метрики:\n")
     
-    # Ragas возвращает средние скоры, которые можно получить прямо по ключам
-    print(f"📈 Средний Faithfulness (отсутствие галлюцинаций): {result.get('faithfulness', 0):.4f}")
-    print(f"📈 Средний Answer Relevancy (релевантность ответа): {result.get('answer_relevancy', 0):.4f}\n")
-    
-    print("📊 Детальный отчет по каждому вопросу:")
-    
     # Конвертируем результат в pandas DataFrame
     df = result.to_pandas()
+    
+    # Ragas возвращает результаты по каждому вопросу, считаем среднее
+    mean_faithfulness = df['faithfulness'].mean() if 'faithfulness' in df.columns else 0
+    mean_relevancy = df['answer_relevancy'].mean() if 'answer_relevancy' in df.columns else 0
+    
+    print(f"📈 Средний Faithfulness (отсутствие галлюцинаций): {mean_faithfulness:.4f}")
+    print(f"📈 Средний Answer Relevancy (релевантность ответа): {mean_relevancy:.4f}\n")
+    
+    print("📊 Детальный отчет по каждому вопросу:")
     
     # Настраиваем Pandas для красивого вывода в консоль
     pd.set_option('display.max_columns', None)

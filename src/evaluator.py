@@ -40,9 +40,10 @@ def evaluate_single_response(question: str, answer: str, context: str) -> dict:
             llm=evaluator_llm,
             embeddings=evaluator_embeddings,
         )
+        df = result.to_pandas()
         return {
-            "faithfulness": round(result.get("faithfulness", 0.0), 3),
-            "answer_relevancy": round(result.get("answer_relevancy", 0.0), 3)
+            "faithfulness": round(df["faithfulness"].mean() if "faithfulness" in df.columns else 0.0, 3),
+            "answer_relevancy": round(df["answer_relevancy"].mean() if "answer_relevancy" in df.columns else 0.0, 3)
         }
     except Exception as e:
         print(f"Ragas evaluation error: {e}")
