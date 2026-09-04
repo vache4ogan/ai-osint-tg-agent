@@ -4,12 +4,17 @@ from ragas import evaluate
 from ragas.metrics import Faithfulness, AnswerRelevancy
 from langchain_ollama import ChatOllama
 from langchain_huggingface import HuggingFaceEmbeddings
+import os
 
 # Игнорируем предупреждения Ragas об устаревших импортах
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Инициализируем локальные модели один раз на уровне модуля
-evaluator_llm = ChatOllama(model="llama3", temperature=0)
+evaluator_llm = ChatOllama(
+    model="llama3", 
+    temperature=0,
+    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+)
 evaluator_embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     model_kwargs={'device': 'cpu'} 

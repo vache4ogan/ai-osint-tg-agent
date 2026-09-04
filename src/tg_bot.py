@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import feedparser
+import html
 
 from src.config import BOT_TOKEN, ADMIN_ID, CHANNEL_ID
 # Импортируем наш собранный граф и функцию парсера
@@ -87,8 +88,8 @@ async def process_topic_selection(callback_query: types.CallbackQuery):
 
     await callback_query.answer()
     status_msg = await callback_query.message.answer(
-        f"⏳ Агенты пошли писать пост на тему:\n*{topic_title}*\n\nЭто займет пару минут...", 
-        parse_mode="Markdown"
+        f"⏳ Агенты пошли писать пост на тему:\n<b>{html.escape(topic_title)}</b>\n\nЭто займет пару минут...", 
+        parse_mode="HTML"
     )
     
     await generate_and_review(topic_id, topic_title, status_msg)
@@ -108,17 +109,17 @@ async def generate_and_review(topic_id: str, topic_title: str, message: Message)
         
         # Обновляем статус: началась оценка
         await message.edit_text(
-            f"✅ Черновик написан!\n⏳ Теперь Ragas оценивает качество (Faithfulness, Relevancy) на локальной модели...\n*Тема:* {topic_title}",
-            parse_mode="Markdown"
+            f"✅ Черновик написан!\n⏳ Теперь Ragas оценивает качество (Faithfulness, Relevancy) на локальной модели...\n<b>Тема:</b> {html.escape(topic_title)}",
+            parse_mode="HTML"
         )
         
         # Оцениваем через Ragas
         metrics = await asyncio.to_thread(evaluate_single_response, topic_title, draft, context)
         
         metrics_text = (
-            f"📊 **Метрики качества (Ragas)**:\n"
-            f"• Faithfulness: `{metrics['faithfulness']}`\n"
-            f"• Answer Relevancy: `{metrics['answer_relevancy']}`\n\n"
+            f"📊 <b>Метрики качества (Ragas)</b>:\n"
+            f"• Faithfulness: <code>{metrics['faithfulness']}</code>\n"
+            f"• Answer Relevancy: <code>{metrics['answer_relevancy']}</code>\n\n"
         )
         
         # Создаем клавиатуру модерации (Human-in-the-loop)
@@ -130,9 +131,9 @@ async def generate_and_review(topic_id: str, topic_title: str, message: Message)
         
         # Отправляем черновик на проверку
         await message.edit_text(
-            f"📝 **ЧЕРНОВИК ГОТОВ**\n*Тема:* {topic_title}\n\n{metrics_text}{final_text}",
+            f"📝 <b>ЧЕРНОВИК ГОТОВ</b>\n<b>Тема:</b> {html.escape(topic_title)}\n\n{metrics_text}{html.escape(final_text)}",
             reply_markup=builder.as_markup(),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         
     except Exception as e:
@@ -173,7 +174,7 @@ async def action_regenerate(callback_query: types.CallbackQuery):
         await callback_query.answer("Тема устарела.", show_alert=True)
         return
 
-    await callback_query.message.edit_text(f"🔄 Агенты переписывают пост:\n*{topic_title}*...", parse_mode="Markdown")
+    await callback_query.message.edit_text(f"🔄 Агенты переписывают пост:\n<b>{html.escape(topic_title)}</b>...", parse_mode="HTML")
     await callback_query.answer()
     
     # Запускаем генерацию заново

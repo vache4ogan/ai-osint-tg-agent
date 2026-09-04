@@ -1,6 +1,7 @@
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama
+import os
 
 # 1. Инициализируем модель эмбеддингов
 embeddings = HuggingFaceEmbeddings(
@@ -17,4 +18,8 @@ vector_store = Chroma(
 )
 
 # 3. Подключаем саму LLM
-llm = ChatOllama(model="llama3:latest", temperature=0.1)
+llm = ChatOllama(
+    model="llama3:latest", 
+    temperature=0.1,
+    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+)
